@@ -54,7 +54,8 @@ def main():
                     f"[STATUS] Money is over set {shared_state.BUILD_START_AMOUNT}. Starting builder..."
                 )
                 state_handler.start_building_handler()
-                while (
+                time.sleep(0.2)
+                """ while (
                     not shared_state.builder_running
                     and shared_state.money >= shared_state.BUILD_START_AMOUNT
                 ):
@@ -62,9 +63,11 @@ def main():
                         f"[STATUS] Money is over set {shared_state.BUILD_START_AMOUNT}. Starting builder..."
                     )
                     state_handler.start_building_handler()
-                    break
+                    time.sleep(0.2)
+                    break """
             else:
                 print("[STATUS] Builder is already running!!!")
+                time.sleep(0.2)
 
 
 if __name__ == "__main__":

@@ -46,10 +46,10 @@ class StateHandler:
             print("[AUTOROLL] Autoroll started.")
             shared_state.autoroller_running = True
             shared_state.autoroller_thread_is_alive = True
-        elif shared_state.rolls < shared_state.AR_MINIMUM_ROLLS:
+            """lif shared_state.rolls < shared_state.AR_MINIMUM_ROLLS:
             print(
                 f"[AUTOROLL] Cannot start autoroll. {shared_state.rolls} is < minimum {shared_state.AR_MINIMUM_ROLLS} to start rolling."
-            )
+            )"""
         elif (
             shared_state.autoroller_running
             and not shared_state.disable_autoroller_running

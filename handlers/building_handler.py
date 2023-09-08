@@ -70,7 +70,6 @@ class BuildingHandler:
                     print("[BUILDER] Menu entered successfully.")
                     self.in_menu = True
                     break
-                print("[BUILDER] Moving to gather_building_costs")
                 break
 
     # Gather the costs of each building, loop until all 5 costs are acquired
@@ -99,9 +98,6 @@ class BuildingHandler:
             return 0  # You can modify this to handle errors differently if needed
 
     def gather_building_costs(self):
-        self.check_menu_status()
-        if not self.in_menu:
-            self.enter_build_menu()
         self.building_costs = {}
         self.y = 1202
         width = 91
@@ -115,37 +111,39 @@ class BuildingHandler:
         }
         self.cost_text = None
         building_finished = self.image_cache.load_image("building-complete.png")
-        if self.in_menu:
-            for building, x in self.building_x_coords.items():
-                print(f"[BUILDER] Getting cost of {building}...")
-                finished = locateOnScreen(
-                    building_finished, region=(x, self.y, width, height)
-                )
-                if not finished:
-                    target_size = (364, 168)
-                    cost_region = (x, self.y, width, height)
-                    cost_screenshot = screenshot(region=cost_region)
-                    cost_screenshot_np = np.array(cost_screenshot)
-                    thresholded_cost_image = ocr_utils.preprocess_image(
-                        cost_screenshot_np,
-                        contrast_reduction_percentage=0,
-                        target_size=target_size,
-                        threshold_value=150,
-                    )
-                    self.cost_text = image_to_string(thresholded_cost_image)
-                    sleep(0.1)
-
-                    cost = self.extract_and_convert_cost(self.cost_text)
-                    self.building_costs[building] = cost
-                    print(f"[BUILDER] {building} costs {cost}")
-                else:
-                    print("[BUILDER] Building finished. Moving on...")
-                    cost = -1
-                    self.building_costs[building] = cost
-            sleep(1)
-        else:
+        self.check_menu_status()
+        if not self.in_menu:
             self.enter_build_menu()
-        self.purchase_buildings()
+        else:
+            if self.in_menu:
+                for building, x in self.building_x_coords.items():
+                    print(f"[BUILDER] Getting cost of {building}...")
+                    finished = locateOnScreen(
+                        building_finished, region=(x, self.y, width, height)
+                    )
+                    if not finished:
+                        target_size = (364, 168)
+                        cost_region = (x, self.y, width, height)
+                        cost_screenshot = screenshot(region=cost_region)
+                        cost_screenshot_np = np.array(cost_screenshot)
+                        thresholded_cost_image = ocr_utils.preprocess_image(
+                            cost_screenshot_np,
+                            contrast_reduction_percentage=0,
+                            target_size=target_size,
+                            threshold_value=150,
+                        )
+                        self.cost_text = image_to_string(thresholded_cost_image)
+                        sleep(0.1)
+
+                        cost = self.extract_and_convert_cost(self.cost_text)
+                        self.building_costs[building] = cost
+                        print(f"[BUILDER] {building} costs {cost}")
+                    else:
+                        print("[BUILDER] Building finished. Moving on...")
+                        cost = -1
+                        self.building_costs[building] = cost
+                sleep(1)
+                self.purchase_buildings()
 
     def purchase_buildings(self):
         """
@@ -181,13 +179,9 @@ class BuildingHandler:
                 # Click to purchase the building
                 click()
                 print("[BUILDER] Building upgraded. Next...")
-
         else:
             self.gather_building_costs()
-
-        self.check_menu_status()
-        if self.in_menu:
-            self.exit_build_menu()
+        self.exit_build_menu()
 
     def exit_build_menu(self):
         self.check_menu_status()
