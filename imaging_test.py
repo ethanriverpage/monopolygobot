@@ -29,9 +29,9 @@ if windows:
         window.height,
     )
 
-    region_x_percent = 7.018
+    region_x_percent = 47
     region_y_percent = 86.905
-    region_right_percent = 19.299
+    region_right_percent = 58.3
     region_bottom_percent = 89.583
     print(f"{window_title} = {window_x}, {window_y}, {window_width}, {window_height}")
 
@@ -40,8 +40,8 @@ if windows:
     # Calculate the region coordinates based on percentages
     left = int(window_x + (window_width * (region_x_percent / 100)))
     upper = int(window_y + (window_height * (region_y_percent / 100)))
-    right = int(left + (window_width * (region_right_percent / 100)))
-    bottom = int((window_height * (region_bottom_percent / 100)))
+    right = int(window_x + (window_width * (region_right_percent / 100)))
+    bottom = int(window_y + (window_height * (region_bottom_percent / 100)))
 
     region = (left, upper, right, bottom)
     print(region)

@@ -65,8 +65,11 @@ def main():
                     state_handler.start_building_handler()
                     time.sleep(0.2)
                     break """
+            elif shared_state.money < shared_state.BUILD_START_AMOUNT:
+                print("[STATUS] Not enough money to start builder.")
+                time.sleep(0.2)
             else:
-                print("[STATUS] Builder is already running!!!")
+                print("[STATUS] Builder is already running!")
                 time.sleep(0.2)
 
 

@@ -15,20 +15,19 @@ class PlayerInfo:
     rolls = shared_state.rolls
 
     def run_rolls(self):
-        rolls_region = (1169, 1274, 191, 38)
+        rolls_region_percent = (34, 91.77, 58, 94.3)
         last_known_rolls = 0
         last_known_roll_capacity = None
         # Capture rolls information
         while True:
-            rolls_screenshot = screenshot(region=rolls_region)
-            rolls_screenshot_np = np.array(rolls_screenshot)
-            target_size = (573, 114)
-            preprocessed_rolls = ocr_utils.preprocess_image(
-                rolls_screenshot_np,
-                contrast_reduction_percentage=-50,
-                target_size=target_size,
+            x_percent, y_percent, right_percent, bottom_percent = rolls_region_percent
+            rolls_text = ocr_utils.ocr_to_str(
+                x_percent,
+                y_percent,
+                right_percent,
+                bottom_percent,
+                output_image_path="rolls-proc.png",
             )
-            rolls_text = image_to_string(preprocessed_rolls)
             rolls_text_e = re.sub(
                 r"([^0-9/])", "", rolls_text
             )  # remove all characters except digits and /
@@ -50,14 +49,21 @@ class PlayerInfo:
                 roll_capacity = last_known_roll_capacity
                 self.rolls = rolls
             shared_state.rolls = self.rolls
+            sleep(1)
 
     def run_money(self):
-        money_region = (1148, 66, 226, 56)
+        money_region_percent = (33, 7.25, 62, 11)
         last_known_money = 0
         # Capture money information
         while True:
-            money_screenshot = screenshot(region=money_region)
-            money_text = image_to_string(money_screenshot)
+            x_percent, y_percent, right_percent, bottom_percent = money_region_percent
+            money_text = ocr_utils.ocr_to_str(
+                x_percent,
+                y_percent,
+                right_percent,
+                bottom_percent,
+                output_image_path="proc-money.png",
+            )
             money_text = "".join(filter(str.isdigit, money_text))
 
             if money_text.isdigit():
@@ -69,3 +75,4 @@ class PlayerInfo:
                 money = last_known_money
                 self.money = money
                 shared_state.money = self.money
+            sleep(1)

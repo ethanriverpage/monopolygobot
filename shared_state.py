@@ -9,6 +9,7 @@ class SharedState:
     AR_MINIMUM_ROLLS = int(env("AR_MINIMUM_ROLLS"))
     BUILD_START_AMOUNT = int(env("BUILD_START_AMOUNT"))
     BUILD_FINISH_AMOUNT = int(env("BUILD_FINISH_AMOUNT"))
+    WINDOW_TITLE = str(env("WINDOW_TITLE"))
 
     def __init__(self):
         self.bank_heist_handler_running = False

@@ -1,13 +1,14 @@
-from PIL import Image
+import cv2
+import numpy as np
 
 
 class ImageCache:
     def __init__(self):
-        self.cache: dict[str, Image.Image] = {}
+        self.cache: dict[str, np.ndarray] = {}
 
-    def load_image(self, path: str) -> Image.Image:
+    def load_image(self, path: str) -> np.ndarray:
         image = self.cache.get(path)
         if image is None:
             print(f"[CACHE] {path} not yet cached. Caching now...")
-            image = self.cache[path] = Image.open(f"images\\{path}")
+            image = self.cache[path] = cv2.imread(path)
         return image
