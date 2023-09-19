@@ -24,6 +24,7 @@ Monopoly GO! Bot is a Python script designed to automate actions in the mobile g
 - Quick wins and community chests
 - Handling game crashes
 - Customizing the multiplier set amount
+- Changing the path of Tesseract-OCR
 
 ## Known Issues
 
@@ -46,7 +47,9 @@ Monopoly GO! Bot is a Python script designed to automate actions in the mobile g
 
 `pip install -r requirements.txt`
 
-2. On Windows, run the script as an administrator:
+2. Install Tesseract-OCR. For more information, check out [tesseract-ocr/](https://github.com/tesseract-ocr/tesseract)
+
+3. On Windows, run the script as an administrator:
 
 `.\start.ps1`
 
