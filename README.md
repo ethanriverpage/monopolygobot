@@ -25,6 +25,7 @@ Monopoly GO! Bot is a Python script designed to automate actions in the mobile g
 - Handling game crashes
 - Customizing the multiplier set amount
 - Changing the path of Tesseract-OCR
+- Tutorial handling
 
 ## Known Issues
 
