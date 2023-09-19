@@ -1,39 +1,36 @@
 from pyautogui import moveTo
 from pydirectinput import click
-from utils.image_cache import ImageCache
 from utils.ocr_utils import OCRUtils
 from shared_state import shared_state
-from threading import Condition
 import os
 from time import sleep
+from utils.logger import logger
 
-image_cache = ImageCache()
 ocr_utils = OCRUtils()
-
-shut_down_handler_condition = Condition()
 
 
 class ShutDownHandler:
     def run(self):
-        current_path = os.path.dirname(os.path.abspath(__file__))
-        with shut_down_handler_condition:
-            shut_down_handler_condition.wait()
-        while True:
-            sd_up_path = os.path.join(current_path, "..", "images", "sd-marker-up.png")
-            sd_down_path = os.path.join(
-                current_path, "..", "images", "sd-marker-down.png"
-            )
-            sd_image_paths = [sd_up_path, sd_down_path]
+        current_path = shared_state.current_path
+        sd_image_paths = [
+            os.path.join(current_path, "images", "sd-marker-up.png"),
+            os.path.join(current_path, "images", "sd-marker-down.png"),
+        ]
+        shared_state.thread_barrier.wait()
+        logger.debug("[SD] Received notification! Starting...")
+        while shared_state.shut_down_handler_running:
             for path in sd_image_paths:
-                sd_image = image_cache.load_image(path=path)
+                sd_image = shared_state.load_image(path=path)
                 point = ocr_utils.find(sd_image)
                 if point is not None:
                     print(
-                        f"[SD] Marker detected at {point.x}, {point.y}. Clicking target..."
+                        f"[SD] Marker detected at {point[0]}, {point[1]}. Clicking target..."
                     )
-                    moveTo(x=point.x, y=point.y, duration=0.2)
-                    click()
+                    with shared_state.moveTo_lock:
+                        moveTo(x=point[0], y=point[1])
+                        click()
+                    sleep(0.2)
+                    shared_state.moveto_center()
                     break
                 sleep(1)
-            if not shared_state.shut_down_handler_running:
-                break
+        print("[SD] Exiting...")

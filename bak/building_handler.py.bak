@@ -1,0 +1,397 @@
+from shared_state import shared_state
+from utils.image_cache import ImageCache
+from pyautogui import moveTo
+from pydirectinput import click
+from time import sleep
+import re
+from utils.ocr_utils import OCRUtils
+import os
+import json
+import logging
+
+image_cache = ImageCache()
+ocr_utils = OCRUtils()
+logger = logging.getLogger(__name__)
+
+
+class BuildingHandler:
+    def __init__(self):
+        with shared_state.money_condition:
+            shared_state.money_condition.wait()
+            self.current_money = shared_state.money
+        self.image_cache = image_cache
+        self.start_building = False
+        self.unsuccessful_purchases = 0
+        self.finished = False
+        self.in_menu = False
+        self.finished_building_count = 0
+        self.building_costs_gathered = False
+        (
+            self.window_x,
+            self.window_y,
+            self.window_width,
+            self.window_height,
+        ) = shared_state.window
+        self.data = self.load_data()
+
+        self.initialize_board_data()
+
+        logger.debug("[BUILDER] Initialized successfully.")
+
+    def load_data(self):
+        try:
+            with open("game_data.json", "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            logger.error("[BUILDER] game_data.json not found.")
+            return []
+
+    def save_data(self):
+        with open("game_data.json", "w") as f:
+            json.dump(self.data, f, indent=4)
+
+    def process_board_name(self, board_name):
+        pattern = r"\d+/30"
+        cleaned_name = re.sub(r"[^a-zA-Z0-9/ ]", "", board_name)
+        match = re.search(pattern, cleaned_name)
+        if match:
+            start, _ = match.span()
+            extracted_text = board_name[:start].strip()
+            return extracted_text
+        else:
+            return board_name
+
+    def gather_board_name(self):
+        board_name_region = (1, 91.7, 94.9, 95)
+        board_x_percent = board_name_region[0]
+        board_y_percent = board_name_region[1]
+        board_right_percent = board_name_region[2]
+        board_bottom_percent = board_name_region[3]
+        board_process_settings = {
+            "contrast_reduction_percentage": 0,
+            "threshold_value": 75,
+            "invert": False,
+            "scale_factor": 4,
+        }
+        board_name = None
+        board_name = ocr_utils.ocr_to_str(
+            board_x_percent,
+            board_y_percent,
+            board_right_percent,
+            board_bottom_percent,
+            "board-name.png",
+            True,
+            "--psm 7 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/ ",
+            board_process_settings,
+        )
+        board_name_proc = self.process_board_name(board_name)
+        return board_name_proc
+
+    def enter_build_menu(self):
+        while not self.in_menu:
+            self.check_menu_status()
+            if not self.in_menu:
+                logger.debug("[BUILDER] Not in menu, looking for build icon")
+                current_path = os.path.dirname(os.path.abspath(__file__))
+                build_path = os.path.join(current_path, "..", "images", "build.png")
+                build_image = image_cache.load_image(build_path)
+                location = ocr_utils.find(build_image)
+                if location:
+                    logger.debug("[BUILDER] Found build menu icon. Clicking...")
+                    x, y = location
+                    click(x, y)
+                    sleep(2)
+                    self.check_menu_status()
+
+    def check_menu_status(self):
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        exit_path = os.path.join(current_path, "..", "images", "build-exit.png")
+        exit_image = image_cache.load_image(exit_path)
+        location = ocr_utils.find(exit_image)
+        self.in_menu = location is not None
+
+    def extract_and_convert_cost(self, cost_text):
+        pattern = r"(\d+(\.\d+)?)([MK]?)"
+        match = re.search(pattern, cost_text)
+        if match:
+            numeric_part, decimal_part, unit_part = match.groups()
+            if not unit_part and decimal_part:
+                # Numeric part has a decimal point but no "M" or "K"
+                conversion_factor = 1000
+            else:
+                conversion_factor = (
+                    1_000_000
+                    if unit_part == "M"
+                    else (1_000 if unit_part == "K" else 1)
+                )
+            numeric_part = numeric_part.replace(
+                ",", ""
+            )  # Remove commas as digit separators
+            self.cost_value = int(float(numeric_part) * conversion_factor)
+            return self.cost_value
+        else:
+            return 0
+
+    def gather_building_costs(self):
+        self.buildings = [
+            {
+                "name": "building1",
+                "x_percent": 7.3,
+                "y_percent": 86.4,
+                "right_percent": 18,
+                "bottom_percent": 88.9,
+                "upgrade_level": 0,
+                "initial_cost": 0,
+                "subsequent_costs": [0, 0, 0, 0, 0],
+            },
+            {
+                "name": "building2",
+                "x_percent": 26,
+                "y_percent": 86.4,
+                "right_percent": 37,
+                "bottom_percent": 88.9,
+                "upgrade_level": 0,
+                "initial_cost": 0,
+                "subsequent_costs": [0, 0, 0, 0, 0],
+            },
+            {
+                "name": "building3",
+                "x_percent": 44.9,
+                "y_percent": 86.4,
+                "right_percent": 55.9,
+                "bottom_percent": 88.9,
+                "upgrade_level": 0,
+                "initial_cost": 0,
+                "subsequent_costs": [0, 0, 0, 0, 0],
+            },
+            {
+                "name": "building4",
+                "x_percent": 64.4,
+                "y_percent": 86.4,
+                "right_percent": 75.4,
+                "bottom_percent": 88.9,
+                "upgrade_level": 0,
+                "initial_cost": 0,
+                "subsequent_costs": [0, 0, 0, 0, 0],
+            },
+            {
+                "name": "building5",
+                "x_percent": 82.9,
+                "y_percent": 86.4,
+                "right_percent": 93.3,
+                "bottom_percent": 88.9,
+                "upgrade_level": 0,
+                "initial_cost": 0,
+                "subsequent_costs": [0, 0, 0, 0, 0],
+            },
+        ]
+        cost_text = None
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        building_finished_path = os.path.join(
+            current_path, "..", "images", "building-finished.png"
+        )
+        building_finished_image = image_cache.load_image(building_finished_path)
+        self.check_menu_status()
+        if not self.in_menu:
+            self.enter_build_menu()
+        else:
+            if self.in_menu:
+                self.board_name = self.gather_board_name()
+                sleep(1)
+                for building_info in self.buildings:
+                    building_name = building_info["name"]
+                    x_percent = building_info["x_percent"]
+                    y_percent = building_info["y_percent"]
+                    right_percent = building_info["right_percent"]
+                    bottom_percent = building_info["bottom_percent"]
+                    self.x = int(
+                        self.window_x + (self.window_width * (x_percent / 100))
+                    )
+                    self.y = int(
+                        self.window_y + (self.window_height * (y_percent / 100))
+                    )
+                    self.right = int(
+                        self.window_x + (self.window_width * (right_percent / 100))
+                    )
+                    self.bottom = int(
+                        self.window_y + (self.window_height * (bottom_percent / 100))
+                    )
+                    coords = (self.x, self.y, self.right, self.bottom)
+                    logger.debug(f"[BUILDER] Getting cost of {building_name}...")
+                    finished = ocr_utils.find(building_finished_image, bbox=coords)
+                    if not finished:
+                        ocr_settings = (
+                            r"--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789.MK"
+                        )
+                        process_settings = {
+                            "contrast_reduction_percentage": 0,
+                            "threshold_value": 75,
+                            "invert": False,
+                            "scale_factor": 4,
+                        }
+                        logger.debug(f"process_settings: {process_settings}")
+                        cost_text = ocr_utils.ocr_to_str(
+                            x_percent,
+                            y_percent,
+                            right_percent,
+                            bottom_percent,
+                            output_image_path=f"{building_name}.png",
+                            ocr_settings=ocr_settings,
+                            process=True,
+                            process_settings=process_settings,
+                        )
+                        logger.debug(
+                            f"[BUILDER] {building_name} cost text: {cost_text}"
+                        )
+
+                        cost = self.extract_and_convert_cost(cost_text)
+                        logger.debug(f"[BUILDER] {building_name} cost: {cost}")
+                        if building_info["initial_cost"] == 0:
+                            building_info["initial_cost"] = cost
+                        else:
+                            building_info["subsequent_costs"].append(cost)
+                        sleep(0.1)
+                    else:
+                        logger.debug("[BUILDER] Building finished. Moving on...")
+                        cost = -1
+                        self.finished_building_count += 1
+                all_upgraded = all(
+                    building_info["initial_cost"] > 0
+                    for building_info in self.buildings
+                )
+
+                if all_upgraded:
+                    for building_info in self.buildings:
+                        if building_info["initial_cost"] > 0:
+                            initial_cost = building_info["initial_cost"]
+                            subsequent_costs = building_info["subsequent_costs"]
+                            for i in range(1, len(subsequent_costs)):
+                                subsequent_costs[i] = initial_cost
+                print(self.buildings)
+                self.update_and_append_board_data()
+                self.purchase_buildings()
+                self.save_board_data()
+
+    def purchase_buildings(self):
+        """
+        Purchase buildings based on gathered costs.
+        """
+        self.check_menu_status()
+        with shared_state.money_condition:
+            shared_state.money_condition.wait()
+        self.current_money = shared_state.money
+        if not self.in_menu:
+            self.enter_build_menu()
+        total_upgrade_cost = sum(
+            building_info[f"upgrade{building_info['upgrade_level'] + 1}"]
+            for building_info in self.buildings
+            if building_info["upgrade_level"] < 6
+        )
+        if total_upgrade_cost > self.current_money:
+            logger.debug(
+                f"[BUILDER] Total cost of upgrading all buildings ({total_upgrade_cost}) exceeds current money ({self.current_money})."
+            )
+            return
+        for building_info in self.buildings:
+            building_name = building_info.get("name")
+            upgrade_level = building_info.get("upgrade_level")
+            next_upgrade_cost = building_info.get(f"upgrade{upgrade_level}")
+            if next_upgrade_cost is None:
+                logger.debug(
+                    f"[BUILDER] Missing 'cost' key in building_info. Skipping {building_name}..."
+                )
+                continue
+            elif next_upgrade_cost == -1:
+                logger.debug("[BUILDER] Not upgrading finished building...")
+                continue
+            elif self.unsuccessful_purchases == 5:
+                logger.debug(
+                    "[BUILDER] Unsuccessful purchase limit reached (max 5). Exiting..."
+                )
+                break
+            elif self.current_money < shared_state.BUILD_FINISH_AMOUNT:
+                logger.debug(
+                    f"[BUILDER] Money is {self.current_money} which is < {shared_state.BUILD_FINISH_AMOUNT}. Stopping builder..."
+                )
+                break
+            elif self.current_money < next_upgrade_cost:
+                logger.debug(
+                    f"[BUILDER] Not enough money for purchase. Unsuccessful purchase # {self.unsuccessful_purchases}"
+                )
+                self.unsuccessful_purchases += 1
+                continue
+            elif self.current_money >= next_upgrade_cost and next_upgrade_cost > 0:
+                x = int(
+                    self.window_x
+                    + (self.window_width * (building_info["x_percent"] / 100))
+                )
+                y = int(
+                    self.window_y
+                    + (self.window_height * (building_info["y_percent"] / 100))
+                )
+                # Move to the building's position and click
+                moveTo(x=x, y=y - 50)
+                click()
+                logger.debug(
+                    f"[BUILDER] Upgraded {building_name} to level {upgrade_level + 1}. Next..."
+                )
+                building_info["upgrade_level"] + 1
+        else:
+            self.gather_building_costs()
+        self.exit_build_menu()
+
+    def exit_build_menu(self):
+        self.check_menu_status()
+        if self.in_menu:
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            build_exit_path = os.path.join(
+                current_path, "..", "images", "build-exit.png"
+            )
+            build_exit_image = image_cache.load_image(build_exit_path)
+            while self.in_menu:
+                location = ocr_utils.find(build_exit_image)
+                logger.debug("[BUILDER] Exiting build menu...")
+                if location:
+                    moveTo(location)
+                    sleep(0.5)
+                    click()
+                    sleep(2)
+                if not location:
+                    logger.debug("[BUILDER] Exited build menu successfully...")
+                    break
+                break
+            with shared_state.builder_finished_condition:
+                shared_state.builder_finished_condition.notify_all()
+
+    def initialize_board_data(self):
+        self.board_number = 167
+        self.current_board_data = {}
+
+    def update_and_append_board_data(self):
+        # Create a dictionary for the current board's data
+        board_data = {
+            "board_name": self.board_name,
+            "buildings": {},
+        }
+
+        # Populate the board data with building costs
+        for building_info in self.buildings:
+            building_name = building_info["name"]
+            building_costs = {f"upgrade{i+1}": building_info["cost"] for i in range(6)}
+            board_data["buildings"][building_name] = building_costs
+
+        # Append the current board data to the list of all boards
+        self.current_board_data[self.board_number] = board_data
+
+        # Increment the board number for the next board
+        self.board_number += 1
+
+    def save_board_data(self):
+        self.data.append(self.current_board_data)
+        self.save_data()
+
+    def run(self):
+        self.check_menu_status()
+        if not self.in_menu:
+            self.enter_build_menu()
+        self.gather_building_costs()

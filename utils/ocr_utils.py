@@ -1,10 +1,8 @@
-from PIL import Image, ImageGrab
+from PIL import ImageGrab
 import pyscreeze
-import pyautogui
 import cv2
 import numpy as np
 from pytesseract import pytesseract
-import pygetwindow as gw
 from shared_state import shared_state
 
 pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
@@ -12,13 +10,48 @@ pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
 class OCRUtils:
     def __init__(self):
-        self.window_size = None
+        """
+        Initialize the OCRUtils class.
 
-    def find(self, template: np.ndarray) -> pyscreeze.Point | None:
+        This class provides utility functions for performing optical character recognition (OCR) on screen captures.
+        It uses various libraries such as PIL, OpenCV, NumPy, and pytesseract.
+
+        Attributes:
+            window: A tuple representing the window coordinates (x, y, width, height).
+            window_x: The x-coordinate of the window's top-left corner.
+            window_y: The y-coordinate of the window's top-left corner.
+            window_width: The width of the window.
+            window_height: The height of the window.
+            window_coords: A tuple representing the window coordinates (left, top, right, bottom).
+            window_size: The size of the window.
+        """
+        self.window = shared_state.window
+        (
+            self.window_x,
+            self.window_y,
+            self.window_width,
+            self.window_height,
+        ) = self.window
+        self.window_coords = shared_state.window_coords
+        self.window_size = self.window
+
+    def find(self, template: np.ndarray, bbox=None) -> pyscreeze.Point | None:
+        """
+        Find a template image within the specified region of the screen.
+
+        Args:
+            template (np.ndarray): The template image to search for.
+            bbox (tuple, optional): The region of the screen to search within (left, top, right, bottom).
+
+        Returns:
+            pyscreeze.Point | None: The coordinates of the found match center, or None if not found.
+        """
         try:
+            if bbox is None:
+                bbox = self.window_size
             screenshot = ImageGrab.grab(
-                bbox=(self.window_size)
-            )  # Adjust the bbox as needed
+                bbox=bbox
+            )  # Capture a screenshot of the specified region
             screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
             res = cv2.matchTemplate(screenshot_cv, template, cv2.TM_CCOEFF_NORMED)
@@ -26,7 +59,6 @@ class OCRUtils:
             loc = np.where(res >= threshold)
 
             if loc[0].size == 0:
-                # print("[OCR] Can't find the template...")
                 return None
 
             # Get the coordinates of the match
@@ -38,45 +70,54 @@ class OCRUtils:
             print("[OCR] Screen grab failed")
             return None
 
-    """ def find(self, image: Image.Image) -> pyscreeze.Point | None:
-        try:
-            result = pyautogui.locateOnScreen(image, grayscale=True, confidence=0.75)
-            if result is None:
-                print("[OCR] Can't find go.png...")
-                return None
-            return pyautogui.center(result)
-        except OSError:
-            print("[OCR] Screen grab failed") """
-
     def preprocess_image(
         self,
         image,
-        contrast_reduction_percentage,
         target_size=None,
         threshold_value=None,
+        invert=None,
     ):
+        """
+        Preprocess an image for OCR by resizing, converting to grayscale, and thresholding.
+
+        Args:
+            image: The input image to preprocess.
+            target_size (tuple, optional): The target size for resizing (width, height).
+            threshold_value (int, optional): The threshold value for binarization.
+            invert (bool, optional): Whether to invert the colors (black background).
+
+        Returns:
+            np.ndarray: The preprocessed image.
+        """
         # Resize the image to the target size (if specified)
         if target_size:
-            image = cv2.resize(image, target_size, interpolation=cv2.INTER_LINEAR)
+            image = cv2.resize(image, target_size, interpolation=cv2.INTER_LANCZOS4)
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        mean_intensity = np.mean(gray_image)
-        contrast_reduction_factor = 1.0 - (contrast_reduction_percentage / 100.0)
-        # Apply the contrast reduction to the image
-        reduced_contrast_image = (
-            gray_image * contrast_reduction_factor
-            + mean_intensity * (1.0 - contrast_reduction_factor)
-        )
-        # Ensure the image mode is 'L' (grayscale)
-        reduced_contrast_image = reduced_contrast_image.astype(np.uint8)
-        # Apply thresholding if threshold_value is provided
-        if threshold_value is not None:
-            _, thresholded_image = cv2.threshold(
-                reduced_contrast_image, threshold_value, 255, cv2.THRESH_BINARY
-            )
-            return thresholded_image
+        # Apply thresholding if threshold_value is provided\
+        if invert:
+            if threshold_value is not None:
+                _, thresholded_image = cv2.threshold(
+                    gray_image,
+                    threshold_value,
+                    255,
+                    cv2.THRESH_BINARY_INV,
+                )
+                return thresholded_image
+            if threshold_value is None:
+                gray_image_inv = 255 - gray_image
+                return gray_image_inv
         else:
-            return reduced_contrast_image
+            if threshold_value is not None:
+                _, thresholded_image = cv2.threshold(
+                    gray_image,
+                    threshold_value,
+                    255,
+                    cv2.THRESH_BINARY,
+                )
+                return thresholded_image
+            if threshold_value is None:
+                return gray_image
 
     def ocr_to_str(
         self,
@@ -85,59 +126,70 @@ class OCRUtils:
         region_right_percent,
         region_bottom_percent,
         output_image_path=None,
+        ocr_settings=None,
+        process_settings=None,
     ):
-        window_title = shared_state.WINDOW_TITLE
-        windows = gw.getWindowsWithTitle(window_title)
+        """
+        Perform OCR on a specified region of the screen and return the recognized text.
 
-        if windows:
-            window = windows[0]
+        Args:
+            region_x_percent (float): The X-coordinate percentage of the left edge of the region.
+            region_y_percent (float): The Y-coordinate percentage of the top edge of the region.
+            region_right_percent (float): The X-coordinate percentage of the right edge of the region.
+            region_bottom_percent (float): The Y-coordinate percentage of the bottom edge of the region.
+            output_image_path (str, optional): The path to save the preprocessed image.
+            ocr_settings (str, optional): Additional OCR configuration settings.
+            process_settings (dict, optional): Image preprocessing settings.
 
-            self.window_x, self.window_y, self.window_width, self.window_height = (
-                window.left,
-                window.top,
-                window.width,
-                window.height,
-            )
+        Returns:
+            str: The recognized text within the specified region.
+        """
+        left = int(
+            self.window_coords[0] + (self.window_coords[2] * (region_x_percent / 100))
+        )
+        upper = int(
+            self.window_coords[1] + (self.window_coords[3] * (region_y_percent / 100))
+        )
+        right = int(
+            self.window_coords[0]
+            + (self.window_coords[2] * (region_right_percent / 100))
+        )
+        bottom = int(
+            self.window_coords[1]
+            + (self.window_coords[3] * (region_bottom_percent / 100))
+        )
 
-            self.window_size = (
-                self.window_x,
-                self.window_y,
-                self.window_width,
-                self.window_height,
-            )
-            """ print(
-                f"{window_title} = {self.window_x}, {self.window_y}, {self.window_width}, {self.window_height}"
-            ) """
-
-            left = int(self.window_x + (self.window_width * (region_x_percent / 100)))
-            upper = int(self.window_y + (self.window_height * (region_y_percent / 100)))
-            right = int(
-                self.window_x + (self.window_width * (region_right_percent / 100))
-            )
-            bottom = int(
-                self.window_y + (self.window_height * (region_bottom_percent / 100))
-            )
-
-            region = (left, upper, right, bottom)
-            # print(region)
-
-            screenshot = pyautogui.screenshot()
-            screenshot_np = np.array(screenshot)
-            screenshot_cropped = screenshot_np[upper:bottom, left:right]
+        screenshot = ImageGrab.grab(bbox=(left, upper, right, bottom))
+        screenshot_np = np.array(screenshot)
+        # screenshot_cropped = screenshot_np[upper:bottom, left:right]
+        if process_settings:
             screenshot_size = (
-                screenshot_cropped.shape[1] * 2,
-                screenshot_cropped.shape[0] * 2,
+                screenshot_np.shape[1] * process_settings["scale_factor"],
+                screenshot_np.shape[0] * process_settings["scale_factor"],
             )
             screenshot_proc = self.preprocess_image(
-                screenshot_cropped, -30, screenshot_size, 150
+                image=screenshot_np,
+                target_size=screenshot_size,
+                threshold_value=process_settings["threshold_value"],
+                invert=process_settings["invert"],
             )
-
-            if output_image_path:
-                cv2.imwrite(output_image_path, screenshot_proc)
-            # Perform OCR on the cropped image
+        else:
+            screenshot_proc = screenshot_np
+        if output_image_path:
+            cv2.imwrite(output_image_path, screenshot_proc)
+        if ocr_settings:
+            text = pytesseract.image_to_string(screenshot_proc, config=ocr_settings)
+        else:
             text = pytesseract.image_to_string(screenshot_proc)
 
-            return text
-        else:
-            print(f"No window with the title '{window_title}' found.")
-            return ""
+        return text
+
+    def screenshot(self, name):
+        """
+        Capture a screenshot of the entire window and save it to a file.
+
+        Args:
+            name (str): The name and path of the output screenshot file.
+        """
+        screenshot = ImageGrab.grab(bbox=self.window_coords)
+        screenshot.save(name)

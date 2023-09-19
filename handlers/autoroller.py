@@ -1,52 +1,39 @@
-from utils.image_cache import ImageCache
 from utils.ocr_utils import OCRUtils
-from time import sleep
 from pyautogui import press
 from shared_state import shared_state
-import cv2
-import numpy as np
 import os
+from utils.logger import logger
+from time import sleep
 
-image_cache = ImageCache()
 ocr_utils = OCRUtils()
 
 
 class AutoRoller:
+    @staticmethod
     def run() -> bool:
-        while shared_state.autoroller_running:
-            current_path = os.path.dirname(os.path.abspath(__file__))
-            go_path = os.path.join(current_path, "..", "images", "go.png")
-            go_image = image_cache.load_image(go_path)
-            while shared_state.rolls >= shared_state.AR_MINIMUM_ROLLS:
-                point = ocr_utils.find(go_image)
-                if point is not None:
-                    print("[AUTOROLL] AutoRoll is not active. AutoRolling...")
-                    press("insert")
-                    sleep(15)
-                elif point is None and shared_state.autoroller_running is False:
-                    break
-                sleep(1)
-                break
-            else:
-                print(f"[AUTOROLL] Rolls is under set {shared_state.rolls}. Waiting...")
-                sleep(30)
+        current_path = shared_state.current_path
+        go_path = os.path.join(current_path, "images", "go.png")
+        go_image = shared_state.load_image(go_path)
+        autoroller_running = True
+        while autoroller_running:  # While autoroller is running
+            with shared_state.autoroller_running_condition:
+                shared_state.autoroller_running_condition.wait()  # Update autoroller_running status
+                autoroller_running = shared_state.autoroller_running
+            if not autoroller_running:  # If autoroller_running is False,
+                break  # break the loop
+            with shared_state.in_home_condition:  # Wait for in_home_status to be updated
+                shared_state.in_home_condition.wait_for(
+                    lambda: shared_state.in_home_status
+                )
 
-        print("[AUTOROLL] Exiting gracefully...")
-
-
-class DisableAutoRoller:
-    def run() -> bool:
-        while shared_state.disable_autoroller_running:
-            current_path = os.path.dirname(os.path.abspath(__file__))
-            image_path = os.path.join(current_path, "..", "images", "autoroll.png")
-            ar_image = cv2.imread(image_path)
-            while True:
-                point = ocr_utils.find(ar_image)
-                if point is not None:
-                    print("[AUTOROLL] Disabling autoroll...")
-                    press("insert")
-                    sleep(5)
-                elif point is None and shared_state.disable_autoroller_running is True:
-                    break
-                break
-        print("[AUTOROLL] Exiting disable_autoroll...")
+            point = ocr_utils.find(go_image)
+            if point is not None:
+                logger.debug("[AUTOROLL] AutoRoll is not active. AutoRolling...")
+                with shared_state.press_lock:
+                    press("num0")
+                    sleep(10)
+            with shared_state.rolling_condition:
+                shared_state.rolling_condition.wait_for(
+                    lambda: not shared_state.rolling_status, timeout=5
+                )
+        logger.debug("[AUTOROLL] Exiting autoroll...")

@@ -1,0 +1,70 @@
+from sys import exit
+from handlers.state_handler import StateHandler
+from shared_state import shared_state
+import keyboard
+from utils import set_console_title
+from utils.player_info import PlayerInfo
+from pytesseract import pytesseract
+
+pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+player_info = PlayerInfo()
+
+
+def main():
+    state_handler = StateHandler()
+    state_handler.start_player_info()
+    shared_state.autoroller_running = False
+    while True:
+        set_console_title.set_console_title()
+
+        # Start building handler if over 100m
+
+        if keyboard.is_pressed("F1"):
+            print("[STATUS] Toggling autoroll...")
+            state_handler.toggle_autoroller()
+            keyboard.wait("up")
+
+        if keyboard.is_pressed("F2"):
+            if not shared_state.bank_heist_handler_running:
+                state_handler.start_bank_heist_handler()
+            else:
+                state_handler.stop_bank_heist_handler()
+            keyboard.wait("up")
+
+        if keyboard.is_pressed("F3"):
+            if not shared_state.shut_down_handler_running:
+                state_handler.start_shut_down_handler()
+            else:
+                state_handler.stop_shut_down_handler()
+            keyboard.wait("up")
+
+        if keyboard.is_pressed("F4"):
+            if not shared_state.ui_handler_running:
+                state_handler.start_ui_handler()
+            else:
+                state_handler.stop_ui_handler()
+            keyboard.wait("up")
+
+        if keyboard.is_pressed("F5"):
+            if not shared_state.building_monitor_running:
+                print("[STATUS] Toggling building monitor...")
+                state_handler.start_building_monitor(state_handler=state_handler)
+            else:
+                state_handler.stop_building_monitor()
+            keyboard.wait("up")
+
+        if keyboard.is_pressed("F6"):
+            if not shared_state.multiplier_monitor_running:
+                print("[STATUS] Starting multiplier handler...")
+                state_handler.start_multiplier_monitor(state_handler=state_handler)
+            else:
+                state_handler.stop_multiplier_monitor()
+            keyboard.wait("up")
+
+        if keyboard.is_pressed("F12"):
+            print("[STATUS] Exiting...")
+            exit()
+
+
+if __name__ == "__main__":
+    main()

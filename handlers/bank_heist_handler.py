@@ -1,41 +1,32 @@
-from utils.image_cache import ImageCache
 from utils.ocr_utils import OCRUtils
 from pyautogui import press
 from time import sleep
-from threading import Condition
 from shared_state import shared_state
 import os
+from utils.logger import logger
 
-image_cache = ImageCache()
 ocr_utils = OCRUtils()
-
-bank_heist_handler_condition = Condition()
 
 
 class BankHeistHandler:
+    def __init__(self):
+        self.current_path = shared_state.current_path
+        self.bh_path = os.path.join(self.current_path, "images", "bank-heist-door.png")
+
     def run(self):
-        current_path = os.path.dirname(os.path.abspath(__file__))
-        with bank_heist_handler_condition:
-            bank_heist_handler_condition.wait()
-            print("[HEIST] Received notification! Starting...")
-        while True:
-            bh_path = os.path.join(current_path, "..", "images", "bank-heist-door.png")
-            mh_path = os.path.join(current_path, "..", "images", "megaheist.png")
-            bh_image = image_cache.load_image(bh_path)
-            mh_image = image_cache.load_image(mh_path)
-            point = ocr_utils.find(bh_image)
-            mh_point = ocr_utils.find(mh_image)
-            if point is not None:
-                print("[HEIST] Bank heist detected. Executing macro...")
-                sleep(2)
-                press("num1")
+        shared_state.thread_barrier.wait()
+        logger.debug("[HEIST] Received notification! Starting...")
+        while shared_state.bank_heist_handler_running:
+            if self.detect_and_execute(self.bh_path, "[HEIST] Bank heist detected."):
                 sleep(5)
-            elif mh_point is not None:
-                print("[HEIST] Mega heist detected. Executing macro...")
-                sleep(2)
-                press("num1")
-                sleep(5)
-            if not shared_state.bank_heist_handler_running:
-                print("[HEIST] I've been told to stop!")
-                break
-            sleep(1)
+                with shared_state.press_lock:
+                    press("num1")
+                    sleep(5)
+
+    def detect_and_execute(self, image_path, message):
+        image = shared_state.load_image(image_path)
+        point = ocr_utils.find(image)
+        if point is not None:
+            print(message)
+            return True
+        return False
